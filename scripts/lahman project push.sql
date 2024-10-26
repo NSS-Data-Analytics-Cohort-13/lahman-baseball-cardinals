@@ -181,11 +181,192 @@ FROM Teams
 WHERE yearid = 2016
 ORDER BY SB DESC
 
-SELECT playerID, SB
-FROM Batting
-WHERE yearid = 2016
+SELECT SB
+FROM BattingPost
 ORDER BY SB DESC
 
-SELECT playerID, SB, CS
-FROM Fielding
-WHERE yearid = 2016
+SELECT playerID, CONCAT(people.namefirst,' ',people.namelast) AS full_name, SB, CS, (SB - CS) AS success_rate
+FROM batting
+JOIN people
+USING(playerid)
+WHERE batting.yearid = 2016 AND batting.SB >= 20
+ORDER BY batting.SB DESC
+
+SELECT playerID, CONCAT(p.namefirst,' ',p.namelast) AS full_name, b.SB, b.CS, ROUND((b.SB - b.CS)/b.SB::decimal,2) AS success_rate
+FROM batting AS b
+JOIN people AS p
+USING(playerid)
+WHERE b.yearid = 2016 AND b.SB >= 20
+ORDER BY success_rate DESC
+
+SELECT playerID, CONCAT(p.namefirst,' ',p.namelast) AS full_name, b.SB, b.CS, ROUND(b.SB/(b.SB + b.CS)::decimal,2) AS success_rate--, f.SB, f.CS
+FROM batting AS b
+JOIN people AS p
+USING(playerid)
+--JOIN fielding AS f
+--USING(playerid)
+WHERE b.yearid = 2016 AND b.SB >= 20 --AND f.SB IS NOT NULL AND f.CS IS NOT NULL
+ORDER BY success_rate DESC
+
+-- A: Chris Owings had the most success stealing bases in 2016 with a 90% success rate. 
+
+-- 7) From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+WITH CTE AS (
+
+SELECT name, teamID, yearid, WSWin,
+	(CASE
+		WHEN WSWin = 'N' THEN SUM(W) ELSE NULL END) AS wins_WS_loser,
+	(CASE
+		WHEN WSWin = 'Y' THEN SUM(W) ELSE NULL END) AS wins_WS_winner
+FROM teams
+WHERE yearID BETWEEN 1970 AND 2016 AND WSWin IS NOT NULL 
+GROUP BY name, teamID, yearID, WSWin
+ORDER BY wins_WS_loser DESC, wins_WS_winner DESC
+)
+SELECT name
+FROM CTE
+
+WITH losers_cte AS
+(
+SELECT *
+FROM teams
+WHERE yearid BETWEEN 1970 AND 2016
+AND wswin = 'N'
+)
+SELECT
+	yearid,
+	max(w) AS max_wins
+FROM losers_cte
+GROUP BY yearid
+ORDER BY max_wins
+
+-- A: Seattle Mariners did not win the world series and ended the season with 116 wins.
+
+SELECT name, teamID, yearid, WSWin,
+	(CASE
+		WHEN WSWin = 'N' THEN SUM(W) ELSE NULL END) AS wins_WS_loser,
+	(CASE
+		WHEN WSWin = 'Y' THEN SUM(W) ELSE NULL END) AS wins_WS_winner
+FROM teams
+WHERE yearID BETWEEN 1970 AND 2016 AND WSWin IS NOT NULL 
+GROUP BY name, teamID, yearID, WSWin
+ORDER BY wins_WS_loser DESC, wins_WS_winner ASC
+
+-- A: Los Angeles Dodgers did win the world series and ended the season with 63 wins. 
+
+SELECT name, teamID, yearid, WSWin,
+	(CASE
+		WHEN WSWin = 'N' THEN SUM(W) ELSE NULL END) AS wins_WS_loser,
+	(CASE
+		WHEN WSWin = 'Y' THEN SUM(W) ELSE NULL END) AS wins_WS_winner
+FROM teams
+WHERE yearID BETWEEN 1970 AND 2016 AND WSWin IS NOT NULL AND yearID <> '1981'
+GROUP BY name, teamID, yearID, WSWin
+ORDER BY wins_WS_loser DESC, wins_WS_winner ASC 
+
+-- A: Removing the problematic year of 1981, St. Louis Cardinals won the most games and won the world series at 83 games.
+
+(SELECT teams.name
+	, teams.yearid
+	, teams.w
+	, teams.wswin
+FROM teams
+WHERE (teams.yearid BETWEEN 1970 AND 1980
+	OR teams.yearid BETWEEN 1982 AND 2016)
+	AND teams.wswin = 'N'
+ORDER BY teams.w DESC
+LIMIT 1)
+UNION
+(SELECT teams.name
+	, teams.yearid
+	, teams.w
+	, teams.wswin
+FROM teams
+WHERE (teams.yearid BETWEEN 1970 AND 1980
+	OR teams.yearid BETWEEN 1982 AND 2016)
+	AND teams.wswin = 'Y'
+ORDER BY teams.w
+LIMIT 1)
+
+WITH top_wins AS 
+(
+	SELECT t1.yearid
+		, t1.name
+		, t1.w
+		, t1.wswin
+	FROM teams AS t1 
+	WHERE (t1.w = (SELECT MAX(t2.w)
+				FROM teams AS t2
+				WHERE t1.yearid = t2.yearid))
+		AND (t1.yearid BETWEEN 1970 AND 1980
+			OR t1.yearid BETWEEN 1982 AND 2016)
+)
+
+SELECT ROUND((SELECT COUNT(top_wins.wswin)::numeric
+		FROM top_wins
+		WHERE top_wins.wswin = 'Y')/COUNT(top_wins.wswin)::numeric*100,2) AS ws_top_wins
+FROM top_wins;
+
+-- A: 25% of the time the team with the most wins also won the world series.
+
+-- 8) Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
+
+select *
+from homegames
+where year = '2016'
+
+select p.park_name, t.name AS team_name, hg.games, SUM(hg.attendance)/COUNT(hg.games) AS total_attendance
+from homegames as hg
+join teams as t
+ON hg.team = t.teamid
+join parks as p
+ON p.park = hg.park
+where hg.year = '2016' and hg.games > 10
+group by p.park_name, team_name, hg.games
+order by total_attendance DESC
+LIMIT 5;
+
+select p.park_name, t.name AS team_name, hg.games, SUM(hg.attendance)/COUNT(hg.games) AS total_attendance
+from homegames as hg
+join teams as t
+ON hg.team = t.teamid
+join parks as p
+ON p.park = hg.park
+where hg.year = '2016' and hg.games > 10
+group by p.park_name, team_name, hg.games
+order by total_attendance ASC
+LIMIT 5;
+
+Numbers should be 47 something and 45 something
+
+-- 9) Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
+
+TSN Manager of the Year
+In both NL and AL
+Need full name and teams they were managing when they won the award
+
+SELECT DISTINCT a.yearid, a.playerid, a.lgid, CONCAT(p.namefirst,' ',p.namelast) AS full_name,
+	CASE
+		WHEN a.lgid = 'AL' AND a.lgid = 'NL' THEN 'Y' ELSE NULL END AS leagues
+FROM awardsmanagers AS a
+JOIN people AS p
+USING(playerid)
+JOIN managershalf AS managers_table
+USING(playerid)
+WHERE a.awardid = 'TSN Manager of the Year' 
+
+select playerid, 
+	case when 
+	awardid = 'TSN Manager of the Year' AND lgid = 'AL' AND lgid = 'NL' THEN COUNT(playerid) else null end AS managerwinner
+from awardsmanagers 
+group by awardid, lgid, playerid
+
+select *
+from awardsmanagers
+
+select playerid, awardid, lgid
+from awardsmanagers 
+WHERE awardid = 'TSN Manager of the Year'-- AND lgid = 'AL' AND lgid = 'NL' 
+--where managerwinner IS NOT NULL
+group by awardid, lgid, playerid
