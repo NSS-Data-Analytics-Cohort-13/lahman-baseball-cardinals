@@ -128,7 +128,7 @@ JOIN batting AS b ON p.playerid = b.playerid
 WHERE b.yearid = 2016
   AND (b.sb + b.cs) >= 20
 ORDER BY success_rate DESC
-LIMIT 1;
+Limit 1;
 
 
 
@@ -204,8 +204,36 @@ FROM ws_winners;
 
 --8. Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 
+--attandance (Home attandce)
 
-
+(SELECT parks.park_name
+	, teams.name
+	, ROUND((homegames.attendance)/(homegames.games::numeric),2) AS avg_attendance
+FROM homegames
+	INNER JOIN parks
+		USING(park)
+	INNER JOIN teams
+		ON homegames.team = teams.teamid
+WHERE homegames.games >= 10
+	AND homegames.year = 2016
+	AND teams.yearid = 2016
+ORDER BY avg_attendance DESC
+LIMIT 5)
+UNION
+(SELECT parks.park_name
+	, teams.name
+	, ROUND((homegames.attendance/homegames.games::numeric),2) AS avg_attendance
+FROM homegames
+	INNER JOIN parks
+		USING(park)
+	INNER JOIN teams
+		ON homegames.team = teams.teamid
+WHERE homegames.games >= 10
+	AND homegames.year = 2016
+	AND teams.yearid = 2016
+ORDER BY avg_attendance
+LIMIT 5)
+ORDER BY avg_attendance DESC
 
 
 
@@ -213,7 +241,37 @@ FROM ws_winners;
 
 --9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
-
+WITH dual_awards AS (
+				SELECT playerid, yearid
+				FROM awardsmanagers
+				WHERE playerid IN (
+									SELECT playerid 
+									FROM awardsmanagers
+									WHERE awardid='TSN Manager of the Year'
+									  AND lgid = 'AL'
+									
+									INTERSECT
+									
+									SELECT playerid
+									FROM awardsmanagers
+									WHERE awardid='TSN Manager of the Year'
+									  AND lgid = 'NL'
+								  )
+				AND awardid='TSN Manager of the Year'
+					 )
+SELECT CONCAT(p.namefirst,' ',p.namelast),
+	   m.yearid,
+	   m.teamid,
+	   t.name
+FROM dual_awards AS d
+INNER JOIN people AS p
+USING(playerid)
+INNER JOIN managers AS m
+	ON m.playerid = d.playerid
+	AND m.yearid = d.yearid
+INNER JOIN teams AS t
+	ON m.teamid = t.teamid
+	AND m.yearid = t.yearid
 
 
 
@@ -221,7 +279,24 @@ FROM ws_winners;
 
 --10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
-
+WITH top_hr AS (
+	SELECT playerid
+		, MAX(hr) AS top_hr
+	FROM batting
+	GROUP BY playerid
+)
+SELECT CONCAT(people.namefirst, ' ',people.namelast) AS full_name
+	, batting.hr
+FROM batting
+	INNER JOIN top_hr
+		USING (playerid)
+	INNER JOIN people
+		USING (playerid)
+WHERE batting.hr = top_hr.top_hr
+	AND batting.yearid = 2016
+	AND batting.hr > 0
+	AND (batting.yearid-LEFT(people.debut,4)::integer) >= 10
+ORDER BY hr DESC;
 
 
 
