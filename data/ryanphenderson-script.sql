@@ -81,7 +81,7 @@
 -- WHERE teams.yearid BETWEEN 1970 AND 2016
 -- 	AND teams.wswin = 'Y'
 -- ORDER BY teams.w
--- LIMIT 1)
+-- LIMIT 1);
 -- Answer 1: LA Dodgers won the World Series in 1981 with only 63 wins, due to a player's strike splitting the season in half.
 -- (SELECT teams.name
 -- 	, teams.yearid
@@ -103,7 +103,7 @@
 -- 	OR teams.yearid BETWEEN 1982 AND 2016)
 -- 	AND teams.wswin = 'Y'
 -- ORDER BY teams.w
--- LIMIT 1)
+-- LIMIT 1);
 -- Answer 2: St. Louis Cardinals had the least wins ever of a World Series victor, at 83 wins. The Seattle Mariners hold the most wins in one season, at 116, despite not making the World Series.
 -- WITH top_wins AS 
 -- (
@@ -115,10 +115,10 @@
 -- 	WHERE (t1.w = (SELECT MAX(t2.w)
 -- 				FROM teams AS t2
 -- 				WHERE t1.yearid = t2.yearid))
--- 		AND (t1.yearid BETWEEN 1970 AND 2016)
+-- 		AND t1.yearid BETWEEN 1970 AND 1980
+-- 		OR t1.yearid BETWEEN 1982 AND 2016
 -- 	ORDER BY t1.wswin
 -- )
-
 -- SELECT ROUND((SELECT COUNT(top_wins.wswin)::numeric
 -- 			FROM top_wins
 -- 			WHERE top_wins.wswin = 'Y')/COUNT(DISTINCT top_wins.yearid)::numeric*100,2) AS ws_top_wins
@@ -134,9 +134,9 @@
 -- 		USING(park)
 -- 	INNER JOIN teams
 -- 		ON homegames.team = teams.teamid
+-- 		AND homegames.year = teams.yearid
 -- WHERE homegames.games >= 10
 -- 	AND homegames.year = 2016
--- 	AND teams.yearid = 2016
 -- ORDER BY avg_attendance DESC
 -- LIMIT 5)
 -- UNION
@@ -148,49 +148,81 @@
 -- 		USING(park)
 -- 	INNER JOIN teams
 -- 		ON homegames.team = teams.teamid
+-- 		AND homegames.year = teams.yearid
 -- WHERE homegames.games >= 10
 -- 	AND homegames.year = 2016
--- 	AND teams.yearid = 2016
 -- ORDER BY avg_attendance
--- LIMIT 5
--- )
--- ORDER BY avg_attendance DESC
+-- LIMIT 5)
+-- ORDER BY avg_attendance DESC;
 
 -- 9. Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
-WITH won_nl AS (
-	SELECT awardsmanagers.playerid
-		, awardsmanagers.yearid
-	FROM awardsmanagers
-	WHERE awardid = 'TSN Manager of the Year'
-		AND lgid = 'NL'
-)
-, won_al AS (
-	SELECT awardsmanagers.playerid
-		, awardsmanagers.yearid
-	FROM awardsmanagers
-	WHERE awardid = 'TSN Manager of the Year'
-		AND lgid = 'AL'
-)
-SELECT playerid
-	, won_nl.yearid
-	, won_al.yearid
-FROM won_nl
-	FULL JOIN won_al
-		USING(playerid)
-	INNER JOIN managers
-		USING (playerid)
-WHERE won_nl.yearid IS NOT NULL
-	AND won_al.yearid IS NOT NULL
+-- WITH won_both AS (
+-- 	SELECT awardsmanagers.playerid
+-- 	FROM awardsmanagers
+-- 	WHERE awardid = 'TSN Manager of the Year'
+-- 		AND lgid = 'NL'
+-- 	INTERSECT
+-- 	SELECT awardsmanagers.playerid
+-- 	FROM awardsmanagers
+-- 	WHERE awardid = 'TSN Manager of the Year'
+-- 		AND lgid = 'AL'
+-- )
+-- SELECT CONCAT(people.namefirst,' ',people.namelast) AS full_name
+-- 	, teams.name
+-- 	, awardsmanagers.lgid
+-- 	, awardsmanagers.yearid
+-- FROM awardsmanagers
+-- 	INNER JOIN won_both
+-- 		USING (playerid)
+-- 	INNER JOIN people
+-- 		USING (playerid)
+-- 	INNER JOIN managers
+-- 		ON awardsmanagers.playerid = managers.playerid
+-- 		AND awardsmanagers.yearid = managers.yearid
+-- 	INNER JOIN teams
+-- 		ON managers.teamid = teams.teamid
+-- 		AND managers.yearid = teams.yearid
+-- WHERE awardid = 'TSN Manager of the Year'
+-- ORDER BY full_name, awardsmanagers.yearid;
 
-SELECT *
-FROM awardsmanagers
-WHERE playerid = 'coxbo01'
 -- 10. Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
-
+-- WITH top_hr AS (
+-- 	SELECT playerid
+-- 		, MAX(hr) AS top_hr
+-- 	FROM batting
+-- 	GROUP BY playerid
+-- 	ORDER BY top_hr DESC, playerid
+-- )
+-- SELECT CONCAT(people.namefirst,' ',people.namelast) AS full_name
+-- 	, batting.hr
+-- FROM batting
+-- 	INNER JOIN top_hr
+-- 		USING (playerid)
+-- 	INNER JOIN people
+-- 		USING (playerid)
+-- WHERE batting.hr = top_hr.top_hr
+-- 	AND batting.yearid = 2016
+-- 	AND batting.hr > 0
+-- 	AND (batting.yearid-LEFT(people.debut,4)::integer) >= 10
+-- ORDER BY hr DESC;
 
 -- **Open-ended questions**
 
 -- 11. Is there any correlation between number of wins and team salary? Use data from 2000 and later to answer this question. As you do this analysis, keep in mind that salaries across the whole league tend to increase together, so you may want to look on a year-by-year basis.
+-- SELECT teams.name
+-- 	, teams.yearid
+-- 	, teams.w
+-- 	, AVG(salaries.salary::integer)::money
+-- FROM teams
+-- 	INNER JOIN salaries
+-- 		USING (teamid)
+-- WHERE teams.yearid >= 2000
+-- GROUP BY teams.name
+-- 	, teams.yearid
+-- 	, teams.w
+-- ORDER BY teams.yearid
+-- 	, teams.w DESC;
+-- Answer: Year to year, there appears to be the barest, if any, correlation between wins and team salary. Rarely does the team with the highest average salary have the most wins, or the team with the lowest have the least.
 
 -- 12. In this question, you will explore the connection between number of wins and attendance.
 --   *  Does there appear to be any correlation between attendance at home games and number of wins? </li>
