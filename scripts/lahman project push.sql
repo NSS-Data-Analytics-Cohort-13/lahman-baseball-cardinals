@@ -55,7 +55,7 @@
 -- SELECT DISTINCT collegeplaying.playerid, 
 -- 	collegeplaying.schoolid, 
 -- 	SUM(salaries.salary) AS total_salary, 
--- 	CONCAT(people.namefirst,' ',people.namelast) AS full_name
+-- 	people.namefirst || ' ' || people.namelast AS full_name
 -- FROM collegeplaying
 -- INNER JOIN people
 -- USING(playerid)
